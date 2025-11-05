@@ -34,10 +34,38 @@ beta_hat = res.x
 print(f"Constrained beta estimates (20 variables): {beta_hat}")
 
 
-# Bootstrap function (to be parallelized)
-def bootstrap_fit(seed, X, y, lb, ub):
+# Time-series bootstrap configuration
+# Adjust block_size based on your data frequency:
+# - Daily data with weekly patterns: block_size = 5-7
+# - Weekly data with monthly patterns: block_size = 4-5  
+# - Monthly data with yearly patterns: block_size = 12
+# - For mild autocorrelation: block_size = 3-5
+BLOCK_SIZE = 10  # Adjust this based on your time structure
+
+def block_bootstrap_sample(n, block_size):
+    """Generate time-series aware bootstrap indices using block bootstrap"""
+    if block_size >= n:
+        # If block size is too large, use all data in order
+        return np.arange(n)
+    
+    n_blocks_needed = int(np.ceil(n / block_size))
+    max_start = n - block_size + 1
+    
+    # Sample starting positions for blocks
+    block_starts = np.random.choice(max_start, n_blocks_needed, replace=True)
+    
+    indices = []
+    for start in block_starts:
+        block_indices = np.arange(start, min(start + block_size, n))
+        indices.extend(block_indices)
+    
+    # Trim to exact length needed
+    return np.array(indices[:n])
+
+# Bootstrap function (to be parallelized) - Time Series Aware
+def bootstrap_fit(seed, X, y, lb, ub, block_size=BLOCK_SIZE):
     np.random.seed(seed)  # Ensure reproducibility per process
-    indices = np.random.choice(len(y), len(y), replace=True)
+    indices = block_bootstrap_sample(len(y), block_size)
     X_b = X[indices]
     y_b = y[indices]
     res_b = lsq_linear(X_b, y_b, bounds=(lb, ub))
