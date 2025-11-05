@@ -4,22 +4,34 @@ from multiprocessing import Pool, cpu_count
 import numpy as np
 from scipy.optimize import lsq_linear
 
-# Generate synthetic data (replace with your real X, y)
-np.random.seed(42)
-n = 100
-p = 3
-X = np.random.normal(0, 1, (n, p))
-true_beta = np.array([1.5, -2.0, 0.5])  # Example true values satisfying constraints
-y = X @ true_beta + np.random.normal(0, 0.5, n)
+# Load your real data here
+# X should be (144, 20) matrix
+# y should be (144,) vector
+# Replace these with your actual data loading:
+# X = pd.read_csv('your_X_data.csv').values  # or however you load X
+# y = pd.read_csv('your_y_data.csv').values.ravel()  # or however you load y
 
-# Bounds: var1 (beta[0]) >= 0, var2 (beta[1]) <= 0, var3 (beta[2]) unconstrained
-lb = np.array([0, -np.inf, -np.inf])
-ub = np.array([np.inf, 0, np.inf])
+# For demonstration, using placeholder data structure:
+np.random.seed(42)
+n = 144
+p = 20
+X = np.random.normal(0, 1, (n, p))  # Replace with your real X data
+y = np.random.normal(0, 1, n)       # Replace with your real y data
+
+# Constraints: 
+# Variables 0-9: positive (>= 0)
+# Variables 10-14: negative (<= 0) 
+# Variables 15-19: unconstrained
+lb = np.array([0] * 10 + [-np.inf] * 5 + [-np.inf] * 5)  # First 10 >= 0, rest unconstrained
+ub = np.array([np.inf] * 10 + [0] * 5 + [np.inf] * 5)    # Variables 10-14 <= 0, rest unconstrained
+
+print("Lower bounds:", lb)
+print("Upper bounds:", ub)
 
 # Original constrained fit
 res = lsq_linear(X, y, bounds=(lb, ub))
 beta_hat = res.x
-print("Constrained beta estimates (var1, var2, var3):", beta_hat)
+print(f"Constrained beta estimates (20 variables): {beta_hat}")
 
 
 # Bootstrap function (to be parallelized)
@@ -47,10 +59,14 @@ from scipy.stats import norm
 z_scores = beta_hat / boot_se
 p_values = 2 * (1 - norm.cdf(np.abs(z_scores)))
 
-print("Approximate p-values (var1, var2, var3):", p_values)
-print("Bootstrap SEs:", boot_se)
+print(f"Approximate p-values (20 variables): {p_values}")
+print(f"Bootstrap SEs: {boot_se}")
 
 # 95% bootstrap confidence intervals (percentile method)
 ci_low = np.percentile(boot_betas, 2.5, axis=0)
 ci_high = np.percentile(boot_betas, 97.5, axis=0)
-print("95% CIs:", list(zip(ci_low, ci_high)))
+
+print("\n=== RESULTS SUMMARY ===")
+for i in range(20):
+    constraint_type = "positive" if i < 10 else "negative" if i < 15 else "unconstrained"
+    print(f"Variable {i:2d} ({constraint_type:12s}): β={beta_hat[i]:8.4f}, p={p_values[i]:8.4f}, CI=[{ci_low[i]:8.4f}, {ci_high[i]:8.4f}]")
